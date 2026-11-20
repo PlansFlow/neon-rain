@@ -3,3 +3,117 @@
 @media(pointer:coarse){#touch-controls{display:flex;position:absolute;left:3.5%;right:3.5%;bottom:26%;justify-content:space-between;pointer-events:none;z-index:10}#touch-controls>div{display:flex;gap:8px}#touch-controls button{pointer-events:auto;touch-action:none;background:#221a3080;border:1px solid #d8c2df55;width:44px;height:44px;border-radius:50%;font-size:9px;color:#e9daef}#touch-controls .fire{background:#bc739568;border-color:#e7a4c3;width:52px}.controls{display:none}.ready #touch-controls,.paused #touch-controls,.over #touch-controls{display:none}.switch-hint{font-size:7px}}
 @media(max-aspect-ratio:1/1){#stage{width:100vw;height:100svh}#game{top:15%;height:55%;}#game canvas{object-fit:fill}.vignette{background:linear-gradient(#100e19 9%,transparent 30%,transparent 65%,#100e19 78%)}header{top:5%}.brand{font-size:38px}.brand small{font-size:8px}.score strong{font-size:29px}.score .eyebrow{font-size:10px}#status{top:18%;font-size:9px}#wave{font-size:10px}#combo{top:22%}#overlay{inset:23% 0 25%}.pink{font-size:8px}h1{font-size:86px}p{font-size:11px}.primary{font-size:10px;padding:14px 20px}#intro-hint{font-size:7px}footer{bottom:4%}#weapons{gap:4px}.weapon{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px}.weapon .num{position:absolute;top:3px;left:4px;font-size:7px}.weapon svg{height:28px;width:90%;margin-top:7px}.weapon .name{font-size:7px;white-space:normal;min-height:18px;text-align:center}.arsenal-heading{flex-wrap:wrap;gap:8px}#weapon-detail{font-size:8px}.arsenal-heading .eyebrow{font-size:9px}.infinity{font-size:18px}.bottom-line{margin-top:12px}.switch-hint{font-size:8px}#touch-controls{bottom:23%}#touch-controls button{width:48px;height:48px}#touch-controls .fire{width:56px}.utilities{flex-direction:column;align-items:flex-end}#sound{font-size:7px}.health{width:62px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+
+/* ── Arsenal v2: 35 stackable guns ───────────────────────────────── */
+.wave-bar{width:56px;height:4px;background:#ffffff20}.wave-bar i{display:block;height:100%;width:0;background:#ffd0e3;transition:width .15s}#wave-kills{font-size:9px;margin-right:6px}
+.arsenal-heading{gap:18px}.stack{font-size:10px;font-weight:bold;letter-spacing:1.5px;color:#ffd4e7;white-space:nowrap}.stack.hot{color:#ffd36a;text-shadow:0 0 10px #ffd36a80}
+.next{display:flex;align-items:center;gap:10px;font-size:9px;color:#a59aaf;letter-spacing:1px;white-space:nowrap}.next-bar{width:clamp(60px,9vw,150px);height:4px;background:#ffffff20}.next-bar i{display:block;height:100%;width:0;background:var(--pink);transition:width .2s}
+#weapons{grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:5px}
+.gun{position:relative;display:flex;align-items:center;gap:6px;height:24px;min-width:0;padding:0 7px 0 6px;text-align:left;background:#201a2bd9;border:1px solid #a89ab51f;border-bottom:2px solid #a89ab535;font-size:8px;letter-spacing:.4px;transition:background .15s,border-color .15s,opacity .15s}
+.gun:hover{background:#483047b3}
+.gun .sw{flex:none;width:3px;align-self:stretch;margin:3px 0;background:var(--c);box-shadow:0 0 6px var(--c)}
+.gun .gn{flex:none;color:#a89ab5;font-size:7px}
+.gun .nm{min-width:0;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#d9cfe0}
+.gun.on{background:color-mix(in srgb,var(--c) 18%,#201a2b);border-color:color-mix(in srgb,var(--c) 55%,transparent);border-bottom-color:var(--c)}
+.gun.on .nm{color:#fff}
+.gun.off{opacity:.5}
+.gun.locked{opacity:.42;border-style:dashed;cursor:default}.gun.locked .sw{background:#6c627a;box-shadow:none}.gun.locked:hover{background:#201a2bd9}
+.gun.legend.locked{border-color:#ffd36a55}.gun.legend.on{border-bottom-color:#ffd36a}
+.gun.fresh{animation:fresh 1.6s ease-out}
+@keyframes fresh{0%{transform:scale(1.3);box-shadow:0 0 24px var(--c);z-index:3}100%{transform:none;box-shadow:none}}
+#toast{position:absolute;left:50%;top:28%;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:11;opacity:0;white-space:nowrap}
+#toast b{display:block;font-family:Impact,'Arial Narrow',sans-serif;font-size:clamp(28px,4.8vw,72px);font-style:italic;font-weight:900;letter-spacing:-1px;color:#fff;text-shadow:0 4px 30px #211128a0}
+#toast span{display:block;margin-top:8px;font-size:clamp(9px,.9vw,13px);letter-spacing:3px;color:#ffc2dc;text-shadow:0 2px 9px #1b102e}
+#toast.show{animation:toast 2.2s ease-out forwards}
+#toast.unlock b{color:var(--pink);font-size:clamp(22px,3.2vw,48px)}#toast.legend b{color:#ffd36a;font-size:clamp(22px,3.2vw,48px)}#toast.final b{color:#ff5f82}
+@keyframes toast{0%{opacity:0;transform:translateX(-50%) scale(1.3)}10%{opacity:1;transform:translateX(-50%) scale(1)}78%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-14px)}}
+@media(max-width:800px){#weapons{grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:3px}.gun{height:19px;gap:3px;padding:0 4px;font-size:6px}.gun .gn{display:none}.next{font-size:7px;gap:5px}.stack{font-size:8px}.arsenal-heading{gap:8px}.switch-hint{display:none}#wave-kills{font-size:7px}.wave-bar{width:30px}}
+@media(prefers-reduced-motion:reduce){#toast.show{animation:toastfade 2.2s linear forwards}.gun.fresh{animation:none}@keyframes toastfade{0%{opacity:0}10%,78%{opacity:1}100%{opacity:0}}}
+
+/* Compact ammo-belt: one slim row of 35 tiles. Names live in tooltips and unlock toasts. */
+#weapons{grid-template-columns:repeat(35,minmax(0,1fr));gap:3px}
+.gun{height:22px;padding:0;justify-content:center;border-left:0;border-right:0;border-top:1px solid #a89ab51f;font-size:7px}
+.gun .nm{display:none}
+.gun .gn{display:block;position:relative;z-index:1;font-size:clamp(6px,.62vw,9px);letter-spacing:0}
+.gun .sw{position:absolute;left:0;right:0;bottom:0;top:auto;width:auto;height:2px;margin:0;align-self:auto}
+.gun.on .gn{color:#fff}
+.gun.locked .gn{color:#7a6f88}
+.gun.locked{background:#17131fb0}
+@media(max-width:800px){.gun{height:16px}.gun .gn{display:block;font-size:5px}}
+
+/* ── Cash + the Rainmaker shop ───────────────────────────────────── */
+#cash{font-size:clamp(14px,1.6vw,24px);font-weight:bold;letter-spacing:1px;color:#b9ff9e;text-shadow:0 0 12px #6dff7a55}
+#shop-btn.afford{border-color:#b9ff9e;color:#b9ff9e;animation:afford 1.1s ease-in-out infinite}
+@keyframes afford{50%{box-shadow:0 0 14px #b9ff9e66;background:#b9ff9e18}}
+/* ── Boss bar + danger state ─────────────────────────────────────── */
+#boss{position:absolute;left:50%;top:15%;transform:translateX(-50%);width:min(46%,520px);text-align:center;z-index:8;pointer-events:none}
+#boss.hidden{display:none}
+#boss span{display:block;font-size:10px;letter-spacing:4px;font-weight:bold;color:#ff9ab0;margin-bottom:5px;text-shadow:0 0 12px #ff3f7f88}
+.boss-bar{height:8px;background:#ffffff1a;border:1px solid #ff3f7f66;padding:1px}.boss-bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff3f7f,#ff9ab0);transition:width .12s}
+.danger-vignette{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s;z-index:7;background:radial-gradient(ellipse,transparent 45%,#ff1f4a66 100%)}
+.danger-vignette.on{opacity:1;animation:danger 1s ease-in-out infinite}
+@keyframes danger{50%{opacity:.45}}
+@media(prefers-reduced-motion:reduce){.danger-vignette.on{animation:none}}
+
+/* ── Airstrike HUD ───────────────────────────────────────────────── */
+#air{position:absolute;right:3.5%;top:31%;display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:2px;color:var(--muted);z-index:8}
+#air.hidden{display:none}#air b{font-size:10px;color:#cbbfd3}#air.ready b{color:#b9ff9e}#air.ready{color:#e6f0ff}
+.air-bar{width:70px;height:4px;background:#ffffff20}.air-bar i{display:block;height:100%;width:0;background:#9fb7ff;transition:width .2s}#air.ready .air-bar i{background:#b9ff9e;box-shadow:0 0 8px #b9ff9e}
+
+/* ── The Armory (shop) ───────────────────────────────────────────── */
+#shop{position:absolute;inset:0;z-index:20;background:radial-gradient(ellipse at 25% 20%,#2a1b3e 0,#120d1d 55%,#090610 100%);display:flex;overflow:hidden}
+#shop.hidden{display:none}
+#shop::before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#ffffff05 0 1px,transparent 1px 3px);mix-blend-mode:overlay}
+.sx{position:relative;width:100%;display:flex;flex-direction:column;padding:2% 3% 2.5%;min-height:0}
+.sx-head{display:flex;align-items:flex-end;gap:clamp(12px,2vw,30px);padding-bottom:12px;border-bottom:1px solid #f492bc40;box-shadow:0 12px 30px -24px #f492bc}
+.sx-title h2{margin:6px 0 0;font-family:Impact,'Arial Narrow',sans-serif;font-style:italic;font-weight:900;font-size:clamp(24px,3.6vw,54px);line-height:.9;letter-spacing:-1px;text-shadow:0 0 26px #f492bc55}
+.sx-tabs{display:flex;gap:6px;margin-left:clamp(0px,2vw,30px)}
+.sx-tabs button{background:#ffffff08;border:1px solid #ffffff1c;padding:8px clamp(8px,1.2vw,18px);text-align:left;transition:background .15s,border-color .15s,transform .15s}
+.sx-tabs button b{display:block;font-size:clamp(9px,.9vw,13px);letter-spacing:2px}.sx-tabs button small{display:block;margin-top:3px;font-size:7px;letter-spacing:1px;color:var(--muted)}
+.sx-tabs button:hover{background:#f492bc1a;transform:translateY(-1px)}
+.sx-tabs button.on{background:linear-gradient(#f492bc33,#f492bc11);border-color:var(--pink);box-shadow:0 0 18px #f492bc33}
+.sx-cash{margin-left:auto;text-align:right}.sx-cash span{display:block;font-size:9px;letter-spacing:2px;color:var(--muted)}.sx-cash b{font-size:clamp(22px,3vw,44px);font-weight:400;letter-spacing:1px;color:#b9ff9e;text-shadow:0 0 18px #6dff7a66}
+.sx-close{background:var(--pink);color:#271a2c;border:0;padding:12px 14px;font-weight:bold;font-size:10px;letter-spacing:1px}.sx-close kbd{background:#271a2c22;border-color:#271a2c44;color:#271a2c}
+.sx-body{flex:1;min-height:0;display:flex;gap:clamp(14px,2vw,28px);padding-top:16px}
+.sx-side{flex:none;width:clamp(260px,32%,480px);display:flex;flex-direction:column;gap:10px;min-height:0}
+.sx-stage{position:relative;flex:1;min-height:0;border:1px solid #f492bc40;background:#0b0812;box-shadow:inset 0 0 40px #000,0 0 30px #f492bc14;overflow:hidden}
+.sx-stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center bottom;image-rendering:auto}
+.sx-badge{position:absolute;left:10px;top:10px;font-size:9px;letter-spacing:2px;color:#ffd4e7;background:#0b0812cc;border:1px solid #f492bc55;padding:4px 8px}
+.sx-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0}.sx-stats div{background:#ffffff08;border:1px solid #ffffff18;padding:7px 9px}
+.sx-stats dt{font-size:7px;letter-spacing:1.5px;color:var(--muted)}.sx-stats dd{margin:3px 0 0;font-size:clamp(13px,1.4vw,19px);font-weight:bold}.sx-stats i{font-style:normal;font-size:.6em;color:var(--muted)}
+.sx-loadout{display:flex;flex-direction:column;gap:4px;font-size:8px;letter-spacing:1.2px;color:var(--muted)}.sx-loadout b{color:#e6f0ff;margin-left:6px}
+.sx-main{flex:1;min-width:0;overflow:auto;padding:0 8px 24px 2px;scrollbar-width:thin;scrollbar-color:#f492bc66 transparent}
+.sx-h{margin:18px 0 10px;font-size:10px;letter-spacing:3px;color:var(--pink)}.sx-h:first-child{margin-top:2px}.sx-h small{color:#ffd36a;letter-spacing:2px;margin-left:8px}
+.sx-note{margin:0 0 6px;font-size:10px;line-height:1.7;color:#cbbfd3;max-width:70ch}
+.sx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:10px}.sx-grid.wide{grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.sx-card{--tc:#6f647f;position:relative;display:flex;flex-direction:column;gap:3px;text-align:left;padding:10px 11px 11px;background:linear-gradient(160deg,#241b33,#15101f);border:1px solid color-mix(in srgb,var(--tc) 45%,transparent);border-bottom:2px solid var(--tc);transition:transform .15s,box-shadow .15s,border-color .15s;overflow:hidden}
+.sx-card.t1{--tc:#6fd08a}.sx-card.t2{--tc:#5aa8ff}.sx-card.t3{--tc:#b07bff}.sx-card.t4{--tc:#ffd36a}
+.sx-card::after{content:"";position:absolute;inset:auto 0 0 0;height:50%;background:radial-gradient(ellipse at 50% 120%,color-mix(in srgb,var(--c,#fff) 26%,transparent),transparent 70%);pointer-events:none;opacity:.7}
+.sx-card:hover{transform:translateY(-3px);box-shadow:0 10px 26px -10px var(--tc)}
+.sx-tier{font-size:7px;letter-spacing:2px;color:var(--tc);font-weight:bold}
+.sx-art{display:flex;align-items:center;justify-content:center;height:86px;margin:6px 0 4px;position:relative;z-index:1}.sx-art img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 6px 10px #000a) drop-shadow(0 0 12px color-mix(in srgb,var(--c) 40%,transparent))}
+.sx-art.wide{height:64px}.sx-art.tall{height:130px}
+.sx-card b{font-size:11px;letter-spacing:.6px;position:relative;z-index:1}.sx-card em{font-style:normal;font-size:9px;line-height:1.4;color:var(--muted);position:relative;z-index:1;min-height:2.6em}
+.sx-st{font-size:8px;letter-spacing:.8px;color:#a99ebb;position:relative;z-index:1}
+.sx-pr{position:relative;z-index:1;margin-top:6px;font-size:9px;font-weight:bold;letter-spacing:1px}.sx-pr small{font-size:7px;font-weight:normal;color:#ff9ab0;margin-left:4px}
+.sx-pr.buy{color:#0c1a10;background:#b9ff9e;padding:6px 8px;text-align:center;box-shadow:0 0 16px #b9ff9e55}.sx-pr.poor{color:#ff9ab0}.sx-pr.own{color:var(--c,#cbbfd3)}
+.sx-card.can:hover .sx-pr.buy{background:#d9ffc6}
+.sx-card.cant{opacity:.55;cursor:not-allowed}.sx-card.cant:hover{transform:none;box-shadow:none}
+.sx-card.own.on{border-color:color-mix(in srgb,var(--c) 70%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 18%,#241b33),#15101f)}.sx-card.own.off{opacity:.6}
+.sx-missile{cursor:default}.sx-missile.can,.sx-missile.cant{cursor:pointer}.sx-missile.cant{cursor:not-allowed}
+.sx-equip{position:relative;z-index:1;display:flex;gap:6px;margin-top:6px}.sx-equip button{flex:1;background:#ffffff10;border:1px solid #ffffff30;font-size:8px;letter-spacing:1px;padding:6px 4px}.sx-equip button:hover{background:#ffffff22}.sx-equip button.on{background:var(--c);color:#14101c;border-color:var(--c);font-weight:bold}
+.sx-air{display:flex;gap:clamp(12px,2vw,28px);align-items:center;padding:16px;background:linear-gradient(160deg,#1c2338,#111522);border:1px solid #9fb7ff55;box-shadow:inset 0 0 40px #9fb7ff12}
+.sx-jet{flex:1;min-width:0}.sx-jet img{width:100%;filter:drop-shadow(0 14px 18px #000a)}
+.sx-air-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}.sx-air-info h3{margin:0;font-family:Impact,'Arial Narrow',sans-serif;font-style:italic;font-size:clamp(22px,2.6vw,38px)}.sx-air-info p{margin:0;font-size:10px;line-height:1.7;color:#cbbfd3}.sx-hint{color:#9fb7ff!important;letter-spacing:1px}
+.sx-buy-big{align-items:stretch;padding:8px;max-width:260px}
+@media(max-width:900px){.sx{padding:3% 2%}.sx-head{flex-wrap:wrap;gap:8px}.sx-tabs{order:5;width:100%;margin:0;overflow:auto}.sx-body{flex-direction:column;overflow:auto}.sx-side{width:100%}.sx-stage{flex:none;height:280px}.sx-main{overflow:visible}.sx-air{flex-direction:column}.sx-close{padding:8px;font-size:8px}}
+@media(prefers-reduced-motion:reduce){.sx-card,.sx-tabs button{transition:none}}
+/* FIELD BUILD 003 — restrained tactical chrome, readable combat first. */
+:root{--mint:#a2f4db;--panel:#111823;--ink:#edf3f6;--muted:#9eacba;--pink:#a2f4db}button:disabled{opacity:.4;cursor:not-allowed}button:focus-visible{outline:2px solid var(--mint);outline-offset:3px}header .brand small{letter-spacing:1.8px}.brand-dot{color:var(--mint)}.utilities button{height:38px;font-size:11px;background:#0c1426bd;border-color:#c8e0f22c}.utilities #shop-btn{color:var(--mint);border-color:#a2f4db70}.score #cash{color:var(--mint);font-size:16px}#objective{position:absolute;left:3.5%;top:29%;font:10px 'Courier New',monospace;letter-spacing:1.2px;color:#c9d5dd;pointer-events:none}#status{padding:8px 10px;background:#0b1221b0;border-left:2px solid var(--mint)}.health i{background:var(--mint)}#wave-fill{background:#afc6ff}#ammo-readout{margin-left:auto;display:grid;grid-template-columns:auto auto;column-gap:16px;align-items:center;min-width:190px;padding:8px 12px;background:#0b1322d9;border-left:2px solid var(--mint)}#equipped-name{font-size:10px;letter-spacing:1px}#ammo-number{grid-row:span 2;font-size:26px;line-height:1;color:var(--mint);font-variant-numeric:tabular-nums}#ammo-kind{font-size:9px;color:#aab9c7}.ammo-track{grid-column:span 2;height:3px;margin-top:6px;background:#ffffff16}.ammo-track i{display:block;height:100%;background:var(--mint);transition:width .1s}#ammo-readout.low{border-color:#ff947a}#ammo-readout.low #ammo-number{color:#ff947a}#ammo-readout.low .ammo-track i{background:#ff947a}.arsenal-heading .stack{max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mint);font-size:10px}.gun{min-height:32px}.gun.on{box-shadow:inset 0 -2px var(--mint);border-color:#a2f4db90}.gun.locked{opacity:.45}.next{max-width:220px}footer .next #next-label{font-size:9px}#weapons{gap:4px}.bottom-line{font-size:9px}.switch-hint{color:#c4d7df}.build{font-size:9px}
+/* A full-screen title composition, the street remains the visual anchor. */
+.ready #overlay{inset:0;background:linear-gradient(90deg,#080e1cf5 0%,#0b1122e0 27%,#10172b80 58%,#1118270d 100%);justify-content:flex-start;align-items:center;padding:0 9%;z-index:12}.ready .intro{text-align:left;max-width:650px}.ready header{z-index:13}.ready .location{z-index:13}.ready footer,.ready #status,.ready #objective{visibility:hidden}.ready .intro .pink{color:var(--mint);font:11px 'Courier New',monospace;letter-spacing:3px}.ready h1{font-size:clamp(68px,8.8vw,130px);line-height:.94;letter-spacing:-2px;margin:26px 0 24px;text-shadow:none;font-style:normal}.ready h1 em{color:var(--mint)}.ready .intro p{font:14px/1.8 'Courier New',monospace;max-width:380px;color:#bfccd9}.primary{background:var(--mint);color:#10212a;box-shadow:none;padding:18px 24px;min-width:240px;font-size:13px;letter-spacing:2px}.primary:hover{background:#d5fff1}.primary span{font-size:10px;margin-left:50px;opacity:.6}.start-guide{display:flex;gap:15px;margin:28px 0 0;flex-wrap:wrap}.start-guide>span{font-size:9px;color:#afc1d0;display:flex;align-items:center;gap:6px}.start-guide kbd{border-color:#d4ebff33;padding:4px 6px;background:#ffffff06;color:#d7e3ed}#intro-hint{display:flex;gap:24px;letter-spacing:1.5px;margin-top:28px;color:#778e9e;font-size:9px}.playing .start-guide,.paused .start-guide,.over .start-guide{display:none}.intro{animation:deploy-in .6s ease-out}@keyframes deploy-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+/* Armory: larger labels and clear supply actions, one equipped state. */
+.sx{background:#101520!important}.sx-head{background:#0c121c!important}.sx-title .pink{color:var(--mint)}.sx-tabs button.on{border-color:var(--mint)!important;color:var(--mint)!important}.sx-cash b{color:var(--mint)!important}.sx-card{border-radius:3px;transition:background .16s,transform .16s}.sx-card:hover{transform:translateY(-2px);background:#222d3d}.sx-card b{font-size:14px!important}.sx-card em{font-size:12px!important;line-height:1.6}.sx-st{font-size:11px!important;line-height:1.7}.sx-card .sx-pr{font-size:12px!important;padding:10px 0}.sx-card.on{border-color:#a2f4db!important}.sx-card.on .sx-pr{color:var(--mint)}.sx-h{font-size:14px!important;letter-spacing:2px}.sx-note{font-size:13px!important;line-height:1.7;color:#bdc8d4}.sx-tabs button b{font-size:12px!important}.sx-tabs small{font-size:9px!important}.sx-close{font-size:11px!important}.supply-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:25px}.supply-row button{padding:22px;text-align:left;background:#1b2837;border:1px solid #a2f4db55}.supply-row b,.supply-row span{display:block}.supply-row b{font-size:14px;color:var(--mint);margin-bottom:10px}.supply-row span{font-size:13px;color:#c6d2df}.sx-stats dt{font-size:10px!important}.sx-stats dd{font-size:22px!important}.sx-loadout{font-size:10px!important}.sx-art img{image-rendering:pixelated}
+@media(max-width:800px){#objective{top:30%;font-size:8px}#status{font-size:9px}.ready #overlay{padding:0 7%;}.ready h1{font-size:72px}.ready .intro p{font-size:11px;max-width:280px}.ready .intro .pink{font-size:9px}.start-guide{gap:10px;margin-top:18px}.start-guide>span{font-size:8px}.ready #intro-hint{font-size:8px;gap:15px;margin-top:20px}.primary{padding:13px 20px;min-width:200px;font-size:11px}.arsenal-heading .stack{font-size:8px;max-width:160px}#ammo-readout{min-width:135px;padding:5px 7px;column-gap:10px}#ammo-number{font-size:19px}#equipped-name{font-size:8px}#ammo-kind{font-size:7px}.next{display:none}#weapons .gun{min-height:24px}.bottom-line{font-size:7px}.utilities button{height:30px;font-size:9px}.sx-card b{font-size:12px!important}.sx-card em{font-size:11px!important}.sx-st{font-size:10px!important}}
+@media(max-aspect-ratio:1/1){.ready #overlay{padding:0 7%;align-items:center;background:linear-gradient(180deg,#080e1ce8,#0a1220aa)}.ready h1{font-size:78px}.ready header .brand{font-size:32px}.ready .intro{margin-top:45px}.ready .intro p{font-size:12px}.ready .start-guide{max-width:320px}.ready #intro-hint{font-size:8px}#objective{top:23%;font-size:8px}#status{padding:7px;gap:4px}#weapons{grid-template-columns:repeat(12,1fr)!important;max-height:85px;overflow:auto}.arsenal-heading{gap:8px}.arsenal-heading .stack{display:none}#ammo-readout{margin-bottom:7px}.bottom-line .switch-hint{font-size:8px}.sx-tabs button{padding:10px 5px!important}.sx-tabs small{display:none}.sx-card em{font-size:11px!important}.supply-row{grid-template-columns:1fr}.sx-head{gap:10px!important}.sx-close{min-height:38px}.sx-card{min-height:180px}}
+@media(prefers-reduced-motion:reduce){.intro{animation:none}.sx-card:hover{transform:none}}

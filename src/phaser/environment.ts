@@ -37,4 +37,8 @@ export function environment(scene:Phaser.Scene){
  const f=scene.add.graphics().setDepth(8);for(const x of [-20,1400]){f.fillStyle(0x100e1d).fillRect(x,709,70,101);for(let i=0;i<22;i++){f.fillRect(x-45+rand()*130,706+rand()*60,10+rand()*12,65);}}f.fillStyle(0x100e1d).fillRect(0,803,1440,7);
  // Bake static geometry once; combat frames only redraw actors, rain and projectiles.
  g.generateTexture('street-art',1440,810);const baked=scene.add.image(0,0,'street-art').setOrigin(0);scene.children.moveTo(baked,1);g.destroy();
+ // Zoom-out extension: mirror the street to both sides (mirrored edges are seamless) and fill sky and asphalt beyond the frame.
+ scene.add.rectangle(-4500,-3200,10800,3200,0x151326).setOrigin(0).setDepth(-2);
+ scene.add.rectangle(-4500,810,10800,3200,0x181526).setOrigin(0).setDepth(-2);
+ for(const k of [-3,-2,-1,1,2,3]){const flip=Math.abs(k)%2===1;scene.add.image(k*1440,0,'atmosphere').setOrigin(0).setFlipX(flip).setDepth(-1);const art=scene.add.image(k*1440,0,'street-art').setOrigin(0).setFlipX(flip);scene.children.moveTo(art,1);}
 }
