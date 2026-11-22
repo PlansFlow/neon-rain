@@ -1,20 +1,24 @@
 import Phaser from 'phaser';
 import { Simulation, WORLD, type Bullet, type Enemy, type Input } from '../game/simulation';
 import { gunGeometry,muzzlePoint } from '../game/geometry';
+import { HERO_ORIGIN, HERO_SCALE, HERO_SIZE, heroFrame } from '../game/hero';
 import { WEAPONS } from '../game/weapons';
-import { ENEMIES } from '../game/enemies';
+import { ENEMIES, FINAL_WAVE } from '../game/enemies';
 import { PETS } from '../game/pets';
 import { TEXTURES } from '../game/assets';
 import { Sound } from '../game/audio';
 import { environment } from './environment';
+import { ARENA_50, Backdrop, STREET_25 } from './backdrop';
+import { DamageNumbers } from './damageNumbers';
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: number; size: number; }
 interface Ring { x: number; y: number; r: number; life: number; max: number; color: number; }
 interface Arc { pts: number[]; life: number; color: number; }
 interface Palette { coat: number; skin: number; leg: number; hi: number; belly: number; hair: number; boot: number; accent: number; }
 
-const HERO: Palette = { coat: 0xd4cbd0, skin: 0xd8a18d, leg: 0x34445a, hi: 0x807a94, belly: 0xe5d8d5, hair: 0x25202a, boot: 0x9d90a3, accent: 0xf17aa5 };
 const CX = 720, CY = 405;
+/** Jetpack art (125×126) on the hero's back; nozzle tips in image pixels from the centre, for the exhaust. */
+const JET_SCALE = .34, JET_BACK = { x: -17, y: -36 }, JET_NOZZLES = [{ x: 2, y: 55 }, { x: 44, y: 49 }];
 
 /** Reusable sprites: one image per request, grown on demand and hidden when unused. */
 class Pool {
@@ -33,8 +37,13 @@ interface MissileReq { skin: number; x: number; y: number; rot: number; len: num
 
 export class StreetScene extends Phaser.Scene {
   sim: Simulation; soundFX: Sound;
-  touch = { left: false, right: false, jump: false, dash: false, shoot: false, plane: false };
+  touch = { left: false, right: false, jump: false, dash: false, shoot: false, plane: false, grenade: false, missile: false };
   onHud: () => void = () => {};
+  /** Physical keys held (KeyboardEvent.code), so Q/W/E… work on any keyboard layout (Hebrew, AZERTY, …). */
+  private held = new Set<string>();
+  /** One-shot ability requests from the on-screen ability buttons. */
+  private pending: ('plane' | 'grenade' | 'missile' | 'useAll')[] = [];
+  trigger(kind: 'plane' | 'grenade' | 'missile' | 'useAll') { this.pending.push(kind); }
   onToast: (title: string, sub?: string, kind?: string) => void = () => {};
 
   private actors!: Phaser.GameObjects.Graphics; private fx!: Phaser.GameObjects.Graphics;
@@ -46,8 +55,11 @@ export class StreetScene extends Phaser.Scene {
   private pickupPool!: Pool; private explosionPool!: Pool;
   private explosions:{x:number;y:number;t:number;size:number;variant:number}[]=[];
   private labels = 0; private lastLabel = 0;
-  private heroGun!: Phaser.GameObjects.Image; private planeImg!: Phaser.GameObjects.Image;
-  private petPool!: Pool; private missilePool!: Pool; private alienPool!: Pool;
+  private backdrop!: Backdrop; arena!: Backdrop; private dmg!: DamageNumbers;
+  private heroGun!: Phaser.GameObjects.Image; private heroSprite!: Phaser.GameObjects.Image; private jetpack!: Phaser.GameObjects.Image; private planeImg!: Phaser.GameObjects.Image;
+  private petPool!: Pool; private missilePool!: Pool; private alienPool!: Pool; private truckPool!: Pool; private bossPool!: Pool;
+  private shreds: { x: number; y: number; vx: number; vy: number; r: number; vr: number; life: number }[] = []; private bagPool!: Pool;
+  private poofs: { x: number; y: number; t: number }[] = []; private wheelSpin = new Map<number, { x: number; a: number }>();
   private missileReq: MissileReq[] = []; private heroPose = { x: 0, y: 0, angle: 0, show: false };
   private reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -56,16 +68,24 @@ export class StreetScene extends Phaser.Scene {
   preload() { this.load.image('medkit','assets/fx/medkit.png');for(let v=0;v<2;v++)for(let i=0;i<10;i++)this.load.image(`blast-${v}-${i}`,`assets/fx/explosion-${v}-${i}.png`);for (const [key, url] of TEXTURES) this.load.image(key, url); }
 
   create() {
-    environment(this);this.pickupPool=new Pool(this,4.1);this.explosionPool=new Pool(this,6.2);
+    const env = environment(this);
+    this.backdrop = new Backdrop(this, STREET_25, [env.foreground]);
+    this.arena = new Backdrop(this, ARENA_50);
+    this.dmg = new DamageNumbers(this);this.pickupPool=new Pool(this,4.1);this.explosionPool=new Pool(this,6.2);
     this.actors = this.add.graphics().setDepth(4); this.fx = this.add.graphics().setDepth(5);
     this.rain = this.add.graphics().setDepth(6); this.aim = this.add.graphics().setDepth(10);
     this.heroGun = this.add.image(0, 0, 'gun-1').setDepth(4.6).setOrigin(.3, .55);
+    this.jetpack = this.add.image(0, 0, 'jetpack').setDepth(4.45).setScale(JET_SCALE);
+    this.heroSprite = this.add.image(0, 0, 'hero-10').setDepth(4.5).setOrigin(HERO_ORIGIN.x / HERO_SIZE.w, HERO_ORIGIN.y / HERO_SIZE.h).setScale(HERO_SCALE);
     this.planeImg = this.add.image(0, 0, 'plane').setDepth(9).setVisible(false);
-    this.petPool = new Pool(this, 4.2); this.missilePool = new Pool(this, 5.5); this.alienPool = new Pool(this, 3.8);
-    this.keys = this.input.keyboard!.addKeys('A,D,W,SPACE,SHIFT,LEFT,RIGHT,UP,Q') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.petPool = new Pool(this, 4.2); this.missilePool = new Pool(this, 5.5); this.alienPool = new Pool(this, 3.8); this.truckPool = new Pool(this, 3.7); this.bossPool = new Pool(this, 3.9); this.bagPool = new Pool(this, 5.4);
+    this.keys = this.input.keyboard!.addKeys('A,D,W,SPACE,SHIFT,LEFT,RIGHT,UP,Q,G,F,X') as Record<string, Phaser.Input.Keyboard.Key>;
     this.input.mouse!.disableContextMenu(); this.input.addPointer(2);
+    window.addEventListener('keydown', e => { this.held.add(e.code); });
+    window.addEventListener('keyup', e => { this.held.delete(e.code); });
+    window.addEventListener('blur', () => this.held.clear());
     this.game.events.on('blur', () => {
-      if (this.sim.mode === 'playing') { this.sim.mode = 'paused'; this.touch = { left: false, right: false, jump: false, dash: false, shoot: false, plane: false }; this.onHud(); }
+      if (this.sim.mode === 'playing') { this.sim.mode = 'paused'; this.touch = { left: false, right: false, jump: false, dash: false, shoot: false, plane: false, grenade: false, missile: false }; this.held.clear(); this.onHud(); }
     });
     this.onHud();
   }
@@ -95,20 +115,39 @@ export class StreetScene extends Phaser.Scene {
       for (const e of sim.enemies) { const d = Math.abs(e.x - p.x); if (d < bd) { bd = d; best = e; } }
       aimX = best?.x ?? p.x + p.facing * 300; aimY = best ? best.y - 30 : p.y - 34;
     }
+    const key = (code: string, name: string) => this.held.has(code) || this.keys[name].isDown;
     const input: Input = {
-      move: Number(this.keys.D.isDown || this.keys.RIGHT.isDown || this.touch.right) - Number(this.keys.A.isDown || this.keys.LEFT.isDown || this.touch.left),
-      jump: this.keys.W.isDown || this.keys.UP.isDown || this.keys.SPACE.isDown || this.touch.jump,
-      dash: this.keys.SHIFT.isDown || this.touch.dash, plane: this.keys.Q.isDown || this.touch.plane,
-      shoot: (pointer.isDown && pointer.downElement === this.game.canvas) || this.touch.shoot,
+      move: Number(key('KeyD', 'D') || key('ArrowRight', 'RIGHT') || this.touch.right) - Number(key('KeyA', 'A') || key('ArrowLeft', 'LEFT') || this.touch.left),
+      jump: key('KeyW', 'W') || key('ArrowUp', 'UP') || key('Space', 'SPACE') || this.touch.jump,
+      dash: this.keys.SHIFT.isDown || this.held.has('ShiftLeft') || this.held.has('ShiftRight') || this.touch.dash, plane: key('KeyQ', 'Q') || this.touch.plane,
+      shoot: (pointer.leftButtonDown() && pointer.downElement === this.game.canvas) || this.touch.shoot,
+      grenade: key('KeyG', 'G') || this.touch.grenade,
+      useAll: key('KeyX', 'X'),
+      missile: key('KeyF', 'F') || this.touch.missile,
       aimX, aimY,
     };
+    // ability buttons: aim grenades/missiles at the nearest enemy ahead (the cursor is on the button, not the street)
+    while (this.pending.length) {
+      const kind = this.pending.shift()!;
+      if (kind === 'plane') sim.callPlane(); else if (kind === 'useAll') sim.activateUseAll();
+      else {
+        let best: Enemy | undefined, bd = 1e9;
+        for (const e of sim.enemies) { const d = Math.abs(e.x - p.x) + (Math.sign(e.x - p.x) === p.facing ? 0 : 400); if (d < bd) { bd = d; best = e; } }
+        const at = { ...input, aimX: best?.x ?? p.x + p.facing * 420, aimY: best ? best.y - ENEMIES[best.kind].h * .4 : p.y - 30 };
+        if (kind === 'grenade') sim.throwGrenade(at); else sim.fireMissile(at);
+      }
+    }
 
-    this.accumulator += dt;
+    // the final blow plays in slow motion for a moment
+    this.accumulator += sim.defeat && sim.defeat.t < 1.3 ? dt * .35 : dt;
     while (this.accumulator >= 1 / 120) { sim.tick(1 / 120, input); this.handleEvents(); this.accumulator -= 1 / 120; }
     this.recoil = Math.max(0, this.recoil - dt * 45);
 
     this.drawActors(input);
     this.drawFx(dt);
+    this.arena.update(dt, sim.wave, sim.zoom, sim.camX, this.visualTime);
+    this.backdrop.update(dt, sim.wave, sim.zoom, sim.camX, this.visualTime, sim.wave >= 50 && this.arena.mix < .98);
+    this.dmg.update(dt);
     this.drawRain(dt);
     this.syncSprites(input);
 
@@ -139,10 +178,14 @@ export class StreetScene extends Phaser.Scene {
           this.rings.push({x:e.x,y:e.y,r:24,life:.18,max:.18,color:0xffeed4});
           this.burst(e.x, e.y, e.color, crowded ? 5 : 14, 220);
           this.soundFX.play('kill');
-          this.floatText(e.x, e.y - 32, '+$' + e.cash);
+          if ((e.cash ?? 0) >= 25) this.floatText(e.x, e.y - 60, '+$' + e.cash);
           break;
         case 'pickup': this.floatText(e.x,e.y,e.value===30?'+30 HP':'+45 AMMO');this.soundFX.play('unlock');break;
-        case 'hit': if (this.particles.length < 350) this.burst(e.x, e.y, e.color, 2, 100); break;
+        case 'hit':
+          if (this.particles.length < 350) this.burst(e.x, e.y, e.crit ? 0xff3b4f : e.color, e.crit ? 4 : 2, 100);
+          this.dmg.add(e.id ?? 0, e.x, e.y, e.value ?? 0, !!e.crit, sim.zoom);
+          if (e.crit) this.soundFX.play('crit');
+          break;
         case 'hurt':
           this.soundFX.play('hurt');
           if (!this.reduced) this.cameras.main.shake(110, .002);
@@ -150,6 +193,27 @@ export class StreetScene extends Phaser.Scene {
           break;
         case 'dash': this.burst(e.x, e.y, e.color, 16, 90); break;
         case 'plane': this.soundFX.play('plane'); this.onToast('AIRSTRIKE INBOUND', 'CLEAR THE STREET', 'unlock'); break;
+        case 'truck':
+          if (e.value === 0 || e.value === 2) { this.soundFX.play('alien'); this.onToast(e.value === 2 ? 'THE COLLECTOR' : 'GARBAGE TRUCK', e.value === 2 ? 'FINAL BOSS · TAKE OUT THE TRASH' : 'SUPER-BOSS · DODGE THE BAGS', 'final'); }
+          else if (e.value === 1) { this.soundFX.play('spit'); if (!this.reduced) this.cameras.main.shake(260, .003); }
+          else { this.burst(e.x, e.y, 0xffb35a, 40, 420); if (!this.reduced) this.cameras.main.shake(500, .008); this.onToast('TRUCK DOWN', '', 'unlock'); }
+          break;
+        case 'bag':
+          if (e.value === 1) { this.poofs.push({ x: e.x, y: e.y, t: 0 }); this.burst(e.x, e.y, 0x7d8a6a, 10, 160); this.soundFX.play('hurt'); }
+          else this.soundFX.play('spit');
+          break;
+        case 'overdrive': this.soundFX.play('unlock'); this.onToast('OVERDRIVE', '40 KILLS UNTOUCHED · +40% FIRE RATE · +50% DAMAGE', 'legend'); this.rings.push({ x: e.x, y: e.y, r: 260, life: .6, max: .6, color: e.color }); break;
+        case 'useall': this.soundFX.play('plane'); this.onToast('USE ALL', 'EVERY WEAPON. AT ONCE.', 'legend'); this.rings.push({ x: e.x, y: e.y, r: 600, life: .9, max: .9, color: e.color }); if (!this.reduced) this.cameras.main.flash(250, 255, 211, 106); break;
+        case 'boss':
+          if (e.value === 0) { this.soundFX.play('alien'); this.onToast('THE APPLICATION', 'FINAL BOSS · WAVE 50', 'final'); }
+          else if (e.value === 9) { this.soundFX.play('boom', 0, 1, 400); if (!this.reduced) { this.cameras.main.flash(260, 255, 240, 230); this.cameras.main.shake(700, .009); } this.paperBurst(e.x, e.y, 60, 620); }
+          else { this.soundFX.play('wave'); this.onToast(e.value === 2 ? 'PHASE 2 · OVERTIME' : 'PHASE 3 · FINAL ROUND', e.value === 2 ? 'IT THROWS FASTER. PAPER FROM ABOVE.' : 'IT CHARGES. KEEP MOVING.', 'final'); this.paperBurst(e.x, e.y, 22, 360); if (!this.reduced) this.cameras.main.shake(260, .004); }
+          break;
+        case 'paper': this.soundFX.play(e.value === 1 ? 'paper' : 'spit'); break;
+        case 'tear':
+          this.paperBurst(e.x, e.y, e.value === 1 ? 10 : 5, e.value === 1 ? 260 : 160);
+          if (e.value === 1) { this.soundFX.play('hurt'); if (!this.reduced) this.cameras.main.shake(120, .003); } else this.soundFX.play('tear');
+          break;
         case 'stomp': this.rings.push({ x: e.x, y: e.y - 10, r: 190, life: .4, max: .4, color: e.color }); this.soundFX.play('boom', 0, 1, 170); break;
         case 'alien':
           this.soundFX.play('alien');
@@ -170,8 +234,8 @@ export class StreetScene extends Phaser.Scene {
         case 'wave': {
           const w = e.value!;
           this.soundFX.play('wave');
-          this.onToast(w === 10 ? 'FINAL WAVE' : `WAVE ${String(w).padStart(2, '0')}`,
-            w === 10 ? 'EVERYTHING IS COMING' : w > 10 ? 'ENDLESS' : w >= 7 ? 'THE STREET IS FULL' : w >= 4 ? 'THEY KEEP COMING' : 'HOLD THE LINE', w >= 10 ? 'final' : 'wave');
+          this.onToast(w === FINAL_WAVE ? 'FINAL WAVE' : `WAVE ${String(w).padStart(2, '0')}`,
+            w === FINAL_WAVE ? 'THE COLLECTOR IS COMING' : w === 25 ? 'NEW DISTRICT · THE OVERGROWN BLOCK' : w > FINAL_WAVE ? 'ENDLESS' : w % 10 === 0 ? 'SUPER-BOSS INBOUND' : w >= 7 ? 'THE STREET IS FULL' : w >= 4 ? 'THEY KEEP COMING' : 'HOLD THE LINE', w >= FINAL_WAVE || w % 10 === 0 ? 'final' : 'wave');
           break;
         }
       }
@@ -202,7 +266,11 @@ export class StreetScene extends Phaser.Scene {
   }
 
   // ── Rendering ────────────────────────────────────────────────────
+  /** 1 = raining. The ending lets the rain stop. */
+  private rainAmt = 1;
   private drawRain(dt: number) {
+    this.rainAmt += ((this.sim.mode === 'won' || (this.sim.hired && this.sim.wave > 50 && this.sim.elapsed < 0)) ? -1 : 1) * dt * .35; this.rainAmt = Math.max(0, Math.min(1, this.rainAmt));
+    this.arena.warmth += ((this.sim.mode === 'won' ? 1 : 0) - this.arena.warmth) * Math.min(1, dt * .5);
     const g = this.rain, z = this.sim.zoom, k = 1 / z, half = CX * k, cx = this.sim.camX;
     const top = WORLD.ground * (1 - k), span = WORLD.ground + 30 - top;
     g.clear();
@@ -212,11 +280,11 @@ export class StreetScene extends Phaser.Scene {
       if (d.v > 1) { d.v = 0; d.u = Math.random() * 1.1; }
       if (d.u < -.05) d.u += 1.1;
       const x = cx - half + d.u * 2 * half, y = top + d.v * span, fast = d.s > .6;
-      g.lineStyle((fast ? 1.2 : .7) * lw, 0xc9c6df, fast ? .18 : .08).lineBetween(x, y, x - 2 * k, y + (8 + d.s * 12) * k);
+      g.lineStyle((fast ? 1.2 : .7) * lw, 0xc9c6df, (fast ? .18 : .08) * this.rainAmt).lineBetween(x, y, x - 2 * k, y + (8 + d.s * 12) * k);
     }
     for (let i = 0; i < 16; i++) {
       const x = cx - half + (((i * 107 + this.visualTime * 19) * k) % (2 * half));
-      g.lineStyle(lw, 0xb1a3bd, .13).strokeEllipse(x, 637 + Math.sin(i) * 7, (4 + ((this.visualTime * 30 + i * 13) % 20)) * k, 2 * k);
+      g.lineStyle(lw, 0xb1a3bd, .13 * this.rainAmt).strokeEllipse(x, 637 + Math.sin(i) * 7, (4 + ((this.visualTime * 30 + i * 13) % 20)) * k, 2 * k);
     }
   }
 
@@ -227,6 +295,8 @@ export class StreetScene extends Phaser.Scene {
       const d = ENEMIES[e.kind];
       const hit = e.hit > 0;
       if (e.kind === 'alien') { g.fillStyle(0x100e1d, .3).fillEllipse(e.x, 640, 260, 18); this.bossBar(e); continue; }
+      if (e.kind === 'truck') { g.fillStyle(0x100e1d, .4).fillEllipse(e.x, 640, 330, 16); continue; }
+      if (e.kind === 'applicant') continue;
       g.fillStyle(0x100e1d, .35).fillEllipse(e.x, 638, 36 * d.s, 6);
       if (e.kind === 'drone') this.drone(e, hit);
       else if (lod) this.simple(e, hit);
@@ -251,10 +321,31 @@ export class StreetScene extends Phaser.Scene {
     }
     if (p.dash > 0) for (let i = 1; i < 5; i++) g.fillStyle(0xa6ffeb, .14 / i).fillRect(p.x - Math.sign(p.vx) * i * 20 - 11, p.y - 48, 22, 45);
     this.stackAura(p.x, p.y - 34);
-    if (p.invulnerable <= 0 || Math.floor(this.visualTime * 18) % 2 === 0) {
-      const moving = Math.abs(p.vx) > 25;
-      this.person(p.x, p.y, 1, p.facing, HERO, true, false, moving ? this.visualTime * 13 : 0, Math.atan2(input.aimY - (p.y - 34), input.aimX - p.x));
+    if (sim.overdrive > 0 || sim.useAll > 0) { const pulse = .5 + Math.sin(this.visualTime * 12) * .5, c = sim.useAll > 0 ? 0xffd36a : 0xff9a3c; g.fillStyle(c, .1 + pulse * .1).fillCircle(p.x, p.y - 36, 52); g.lineStyle(2, c, .6).strokeCircle(p.x, p.y - 36, 46 + pulse * 6); }
+    // In the darker wave-25 district the hood would melt into the backdrop: a faint backlight keeps the hero readable.
+    if (this.backdrop.mix > 0) g.fillStyle(0xa2f4db, .08 * this.backdrop.mix).fillEllipse(p.x, p.y - 36, 74, 104).fillStyle(0xa2f4db, .05 * this.backdrop.mix).fillEllipse(p.x, p.y - 2, 90, 14);
+    // Hooded hero sprite; the gun pivots on the front hand of the current frame (same point the simulation fires from).
+    const blink = p.invulnerable > 0 && Math.floor(this.visualTime * 18) % 2 === 1, hand = sim.hand;
+    const frame = heroFrame(p, sim.elapsed, WORLD.ground), idle = frame === 10;
+    this.heroSprite.setTexture(`hero-${frame}`).setPosition(p.x, p.y + 1).setFlipX(p.facing < 0).setAlpha(blink ? .35 : 1)
+      .setScale(HERO_SCALE, HERO_SCALE * (idle ? 1 + Math.sin(this.visualTime * 3) * .012 : 1));
+    // jetpack on the back: bobs with the body, tilts into the thrust, exhaust from both nozzles while flying
+    const f = p.facing, tilt = sim.jetOn ? -f * .12 : 0, jx = p.x + JET_BACK.x * f, jy = p.y + JET_BACK.y + (idle ? Math.sin(this.visualTime * 3) * .6 : 0);
+    this.jetpack.setPosition(jx, jy).setFlipX(f < 0).setRotation(tilt).setAlpha(blink ? .35 : 1);
+    if (sim.jetOn) {
+      for (const n of JET_NOZZLES) {
+        const nx = jx + n.x * JET_SCALE * f, ny = jy + n.y * JET_SCALE, len = 26 + Math.random() * 18, w = 7 + Math.random() * 3;
+        g.fillStyle(0xff4f8b, .35).fillTriangle(nx - w, ny, nx + w, ny, nx + (Math.random() - .5) * 6, ny + len * 1.25)
+          .fillStyle(0xffb36a, .75).fillTriangle(nx - w * .6, ny, nx + w * .6, ny, nx, ny + len)
+          .fillStyle(0xfff4d6, .95).fillTriangle(nx - w * .3, ny, nx + w * .3, ny, nx, ny + len * .5)
+          .fillStyle(0xff8a5c, .18).fillCircle(nx, ny + 8, 16);
+      }
+      if (Math.random() < .5) this.particles.push({ x: jx + (Math.random() - .5) * 14, y: jy + 22, vx: (Math.random() - .5) * 60, vy: 160 + Math.random() * 120, life: .35, max: .35, color: 0xffb36a, size: 3 });
+      // heat wash on the ground below while low
+      const h = WORLD.ground - p.y; if (h < 220) g.fillStyle(0xff8a5c, .16 * (1 - h / 220)).fillEllipse(p.x, WORLD.ground, 90 - h * .2, 10);
+      if (Math.random() < .25) this.soundFX.play('jet');
     }
+    if (!blink) { const angle = Math.atan2(input.aimY - hand.y, input.aimX - hand.x); this.heroPose = { x: hand.x, y: hand.y, angle, show: true }; this.muzzle(hand.x, hand.y, angle); }
   }
 
   private bossBar(e: Enemy) {
@@ -413,6 +504,69 @@ export class StreetScene extends Phaser.Scene {
     }
     this.petPool.end();
     // alien carriers
+    // the final boss: phase 1 is cheerful (frames 1/2), phases 2-3 are fed up (frames 4/3). Wind-ups lean, charges tint.
+    this.bossPool.begin();
+    const gb = this.actors;
+    for (const e of sim.enemies) {
+      if (e.kind !== 'applicant') continue;
+      const phase = sim.bossPhase(e), side = e.x >= sim.player.x ? 1 : -1, moving = e.st === 0 || e.st === 1 || e.st === 5;
+      const step = Math.floor(this.visualTime * (e.st === 5 ? 12 : 6)) % 2;
+      const frame = phase === 1 ? (moving && step ? 2 : 1) : (moving && step ? 3 : 4);
+      const windup = e.st === 2 ? 1 - Math.max(0, e.t2) / .6 : 0, shake = e.st === 4 || e.st === 6 ? (Math.random() - .5) * 4 : 0;
+      const squash = 1 + Math.sin(this.visualTime * (moving ? 12 : 3)) * (moving ? .025 : .012);
+      const im = this.bossPool.get(`applicant-${frame}`).setOrigin(.5, 392 / 400).setScale(.61 * (2 - squash), .61 * squash)
+        .setFlipX(side > 0).setPosition(e.x + shake, e.y).setRotation(windup * .14 * side - (e.st === 5 ? .1 * side : 0));
+      if (e.hit > 0) im.setTintFill(0xffffff); else if (e.st === 4 && Math.floor(this.visualTime * 14) % 2) im.setTint(0xff7a8a); else im.clearTint();
+      gb.fillStyle(0x0b0812, .4).fillEllipse(e.x, WORLD.ground + 3, 170, 14);
+      // telegraphs: "!" above the head and an aim line for the toss, a red pulse for the charge
+      if (e.st === 2 || e.st === 4) {
+        const pulse = .5 + .5 * Math.sin(this.visualTime * 20), hy = e.y - 252;
+        gb.fillStyle(0xff3b4f, .9).fillRect(e.x - 4, hy - 26, 8, 18).fillRect(e.x - 4, hy - 4, 8, 8);
+        if (e.st === 2) { const ox = e.x - side * 70, oy = e.y - 150, px = sim.player.x, py = sim.player.y - 38, n = 10; for (let k = 1; k < n; k++) if (k % 2) gb.lineStyle(2, 0xff3b4f, .25 + .35 * pulse).lineBetween(ox + (px - ox) * k / n, oy + (py - oy) * k / n, ox + (px - ox) * (k + .6) / n, oy + (py - oy) * (k + .6) / n); }
+        else gb.fillStyle(0xff3b4f, .1 + .1 * pulse).fillEllipse(e.x, e.y - 110, 240, 260);
+      }
+    }
+    if (sim.defeat) {
+      const d = sim.defeat, p = Math.min(1, d.t / 2.4), im = this.bossPool.get('applicant-4');
+      im.setOrigin(.5, 392 / 400).setPosition(d.x + (Math.random() - .5) * 6 * (1 - p), d.y).setScale(.61 * (1 + p * .25), .61 * (1 - p * .9)).setRotation(0).setAlpha(1 - p).setFlipX(d.x >= sim.player.x);
+      if (Math.floor(d.t * 16) % 2) im.setTintFill(0xffffff); else im.clearTint();
+      if (d.t < 1.6 && Math.random() < .5) this.paperBurst(d.x + (Math.random() - .5) * 120, d.y - 40 - Math.random() * 180, 2, 300);
+    }
+    if (sim.hired) {
+      const a = sim.ally, step = Math.floor(a.t * 7) % 2, im = this.bossPool.get(`applicant-${step ? 2 : 1}`);
+      im.setOrigin(.5, 392 / 400).setScale(.3).setFlipX(a.dir < 0).setPosition(a.x, a.y + Math.abs(Math.sin(a.t * 7)) * -2).setRotation(0).setAlpha(1).clearTint();
+    }
+    this.bossPool.end();
+
+    // garbage truck: right-facing frames (rear toward the hero), aligned on cab + wheel line; wheels spun separately
+    this.truckPool.begin();
+    const g = this.actors;
+    for (const e of sim.enemies) {
+      if (e.kind !== 'truck') continue;
+      const side = e.x >= sim.player.x ? 1 : -1, moving = e.st === 0 || e.st === 4 || e.st === 5;
+      const frame = e.st === 2 ? (e.t2 > .9 ? 5 : 6) : moving ? (Math.floor(this.visualTime * 9) % 2 ? 3 : 2) : 2;
+      const shake = e.st === 3 ? (Math.random() - .5) * 3 : moving ? Math.sin(this.visualTime * 38) * .8 : 0;
+      const im = this.truckPool.get(`boss-truck-${frame}`).setOrigin(230 / 460, 194 / 200).setScale(.75).setFlipX(side < 0).setPosition(e.x + shake, e.y + shake * .5);
+      if (e.hit > 0) im.setTintFill(0xffffff); else if (e.st === 3 && Math.floor(this.visualTime * 12) % 2) im.setTint(0xff9a8a); else im.clearTint();
+      const w = this.wheelSpin.get(e.id) ?? { x: e.x, a: 0 }; w.a += (e.x - w.x) / 19; w.x = e.x; this.wheelSpin.set(e.id, w);
+      for (const cx of [108, 172, 364]) {
+        const wx = e.x + shake + (cx - 230) * .75 * (side < 0 ? -1 : 1), wy = e.y + (164 - 194) * .75;
+        g.lineStyle(2, 0x1c1a17, .85);
+        for (let k = 0; k < 3; k++) { const a = w.a + k * Math.PI / 3; g.lineBetween(wx - Math.cos(a) * 9, wy - Math.sin(a) * 9, wx + Math.cos(a) * 9, wy + Math.sin(a) * 9); }
+      }
+      if (e.st === 0 || e.st === 4) { const rx = e.x - side * 136, on = Math.floor(this.visualTime * 6) % 2; g.fillStyle(on ? 0xffe9b0 : 0xff8a3c, .9).fillRect(rx - 3, e.y - 46, 6, 8); g.fillStyle(0xffd38a, .12).fillCircle(rx, e.y - 42, 26); }
+      if (moving && this.particles.length < 450) this.burst(e.x + side * 140, WORLD.ground - 4, 0x6f6a5f, 1, 60);
+    }
+    this.truckPool.end();
+    for (const [id] of this.wheelSpin) if (!sim.enemies.some(e => e.id === id)) this.wheelSpin.delete(id);
+    // flying bags (frames 1-3), splats on the street (frame 4), poofs on impact (frame 5)
+    this.bagPool.begin();
+    for (const b of sim.bags) this.bagPool.get(`bag-${b.img}`).setOrigin(.5).setScale(.42).setPosition(b.x, b.y).setRotation(b.rot).setAlpha(1);
+    for (const sp of sim.splats) this.bagPool.get('bag-4').setOrigin(.5, .8).setScale(.42).setPosition(sp.x, WORLD.ground + 2).setRotation(0).setAlpha(Math.min(1, sp.t));
+    for (const pf of this.poofs) { pf.t += 1 / 60; this.bagPool.get('bag-5').setOrigin(.5).setScale(.35 + pf.t * 1.2).setPosition(pf.x, pf.y - 10 - pf.t * 30).setRotation(0).setAlpha(Math.max(0, 1 - pf.t * 2.2)); }
+    this.poofs = this.poofs.filter(pf => pf.t < .45);
+    this.bagPool.end();
+
     this.alienPool.begin();
     for (const e of sim.enemies) {
       if (e.kind !== 'alien') continue;
@@ -442,6 +596,24 @@ export class StreetScene extends Phaser.Scene {
     if (pl) this.planeImg.setScale(Math.max(1, k * .75) * 440 / this.planeImg.width).setPosition(pl.x, pl.y).setRotation(.04);
   }
 
+  /** A sheet of paper: pale page, dark outline, three text lines; `flutter` squashes it to fake a turning page. */
+  private drawSheet(g: Phaser.GameObjects.Graphics, x: number, y: number, rot: number, flutter: number, k: number, alpha = 1) {
+    const w = 15 * k * flutter, h = 11 * k, c = Math.cos(rot), s = Math.sin(rot);
+    const pt = (ax: number, ay: number) => ({ x: x + ax * c - ay * s, y: y + ax * s + ay * c });
+    const a = pt(-w, -h), b = pt(w, -h), cc = pt(w, h), d = pt(-w, h);
+    g.fillStyle(0x0b0812, .35 * alpha).fillTriangle(a.x + 3, a.y + 4, b.x + 3, b.y + 4, cc.x + 3, cc.y + 4).fillTriangle(a.x + 3, a.y + 4, cc.x + 3, cc.y + 4, d.x + 3, d.y + 4);
+    g.fillStyle(0xf6ebe3, alpha).fillTriangle(a.x, a.y, b.x, b.y, cc.x, cc.y).fillTriangle(a.x, a.y, cc.x, cc.y, d.x, d.y);
+    g.lineStyle(Math.max(1, k * .9), 0x2a2430, .9 * alpha).strokePoints([a, b, cc, d], true);
+    for (let i = -1; i <= 1; i++) { const l0 = pt(-w * .6, i * h * .45 + h * .1), l1 = pt(w * .6, i * h * .45 + h * .1); g.lineStyle(Math.max(1, k * .6), 0x8f8a96, .9 * alpha).lineBetween(l0.x, l0.y, l1.x, l1.y); }
+  }
+
+  private paperBurst(x: number, y: number, n: number, speed: number) {
+    for (let i = 0; i < n && this.shreds.length < 140; i++) {
+      const a = Math.random() * Math.PI * 2, v = 60 + Math.random() * speed;
+      this.shreds.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, r: Math.random() * 6, vr: (Math.random() - .5) * 14, life: .7 + Math.random() * .6 });
+    }
+  }
+
   private drawFx(dt: number) {
     const g = this.fx, sim = this.sim, z = sim.zoom, k = 1 / z, kk = Math.max(1, k * .75);
     g.clear();
@@ -467,6 +639,20 @@ export class StreetScene extends Phaser.Scene {
       if (this.particles.length < 500) this.burst(pl.x - 170 * k2, pl.y, 0xaad4ff, 2, 30);
     }
 
+    // final boss paper: warned landing spots, fluttering sheets drawn in code, and torn shreds on impact
+    for (const m of sim.marks) {
+      const q = 1 - m.t / m.total, r = 44 * kk;
+      g.fillStyle(0xff3b4f, .1 + .18 * q).fillEllipse(m.x, WORLD.ground + 2, r * 2, r * .5);
+      g.lineStyle(2 * kk, 0xff3b4f, .5 + .4 * q).strokeEllipse(m.x, WORLD.ground + 2, r * 2 * (1.4 - q * .4), r * .5 * (1.4 - q * .4));
+      for (let k = 0; k < 3; k++) { const cy = WORLD.ground - 40 - k * 16 - ((this.visualTime * 60) % 16); g.lineStyle(2 * kk, 0xff3b4f, .35 * q).lineBetween(m.x - 7 * kk, cy - 6 * kk, m.x, cy).lineBetween(m.x, cy, m.x + 7 * kk, cy - 6 * kk); }
+    }
+    for (const sh of sim.sheets) this.drawSheet(g, sh.x, sh.y, sh.rot, .55 + .45 * Math.abs(Math.cos(sh.ph * 7)), kk * 1.35);
+    for (const sd of this.shreds) {
+      sd.life -= dt; sd.vy += 380 * dt; sd.vx *= 1 - dt * 1.5; sd.x += sd.vx * dt; sd.y += sd.vy * dt; sd.r += sd.vr * dt;
+      this.drawSheet(g, sd.x, sd.y, sd.r, .35 + .3 * Math.abs(Math.sin(sd.r * 3)), kk * .45, Math.min(1, sd.life * 2));
+    }
+    this.shreds = this.shreds.filter(sd => sd.life > 0 && sd.y < WORLD.ground + 30);
+
     const rich = sim.bullets.length < 350;
     for (const b of sim.bullets) this.drawBullet(g, b, rich, kk);
 
@@ -482,6 +668,7 @@ export class StreetScene extends Phaser.Scene {
       g.fillStyle(r.color, .14 * (1 - q)).fillCircle(r.x, r.y, r.r * (.15 + .85 * Math.sqrt(q)));
     }
     this.rings = this.rings.filter(r => r.life > 0);
+    if (this.rings.length > 30) this.rings.splice(0, this.rings.length - 30); // USE ALL can spawn dozens per frame
 
     for (const a of this.arcs) {
       a.life -= dt;

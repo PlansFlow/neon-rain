@@ -41,4 +41,6 @@ export function environment(scene:Phaser.Scene){
  scene.add.rectangle(-4500,-3200,10800,3200,0x151326).setOrigin(0).setDepth(-2);
  scene.add.rectangle(-4500,810,10800,3200,0x181526).setOrigin(0).setDepth(-2);
  for(const k of [-3,-2,-1,1,2,3]){const flip=Math.abs(k)%2===1;scene.add.image(k*1440,0,'atmosphere').setOrigin(0).setFlipX(flip).setDepth(-1);const art=scene.add.image(k*1440,0,'street-art').setOrigin(0).setFlipX(flip);scene.children.moveTo(art,1);}
+ // Foreground silhouettes are handed back so a later backdrop can fade them out.
+ return { foreground: f };
 }

@@ -1,6 +1,6 @@
 import { WEAPONS } from './weapons';
 
-type Cue = 'shot' | 'kill' | 'hurt' | 'boom' | 'unlock' | 'wave' | 'spit' | 'arc' | 'plane' | 'alien';
+type Cue = 'shot' | 'kill' | 'hurt' | 'boom' | 'unlock' | 'wave' | 'spit' | 'arc' | 'plane' | 'alien' | 'crit' | 'paper' | 'tear' | 'jet';
 
 /**
  * Synthesized sound. With dozens of guns firing at once the mix is protected three ways:
@@ -26,11 +26,15 @@ export class Sound {
   play(cue: Cue, weapon = 0, stack = 1, power = 1) {
     if (!this.enabled || !this.ctx || !this.bus) return;
     const c = this.ctx, t = c.currentTime;
-    const key = cue === 'shot' ? 'shot' + weapon : cue, gap = cue === 'shot' ? .055 : cue === 'kill' ? .03 : cue === 'boom' ? .06 : cue === 'arc' ? .05 : 0;
+    const key = cue === 'shot' ? 'shot' + weapon : cue, gap = cue === 'shot' ? .055 : cue === 'crit' ? .06 : cue === 'tear' ? .05 : cue === 'jet' ? .09 : cue === 'kill' ? .03 : cue === 'boom' ? .06 : cue === 'arc' ? .05 : 0;
     if (gap && t - (this.last[key] ?? -1) < gap) return;
     if (this.voices > 28) return;
     this.last[key] = t;
     if (cue === 'unlock') return this.unlockJingle(t);
+    if (cue === 'crit') return this.tone(t, 1480, .07, 'square', .035, .55);
+    if (cue === 'paper') return this.sweep(t, 900, 2600, .28, .06);
+    if (cue === 'jet') return this.sweep(t, 380, 220, .16, .028);
+    if (cue === 'tear') return this.sweep(t, 2400, 700, .12, .05);
     if (cue === 'plane') return this.sweep(t, 220, 1800, 1.1, .1);
     if (cue === 'alien') return this.tone(t, 90, .9, 'sawtooth', .14, .4, 700);
     if (cue === 'wave') return this.tone(t, 70, .6, 'sawtooth', .12, 0.25, 900);
